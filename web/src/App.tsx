@@ -118,7 +118,7 @@ export default function App() {
       <header>
         <div className="logo"><span className="dot" aria-hidden="true" /><span>BEAT EARTH</span></div>
         <div className="row">
-          {session && <button className="link" onClick={() => signOut()}>{t("signOut")}</button>}
+          {session && <Profile session={session} t={t} />}
           <div className="langs" role="group" aria-label="Language">
             {(["ru", "en", "zh"] as Lang[]).map((l) => (
               <button key={l} aria-pressed={lang === l} onClick={() => setLang(l)}>{l === "zh" ? "中文" : l.toUpperCase()}</button>
@@ -155,15 +155,35 @@ function useNow() {
   return now;
 }
 
+function Profile({ session, t }: { session: Session; t: T }) {
+  const m = session.user.user_metadata ?? {};
+  const name = (m.full_name || m.name || session.user.email || "Player") as string;
+  const email = session.user.email ?? "";
+  const avatar = (m.avatar_url || m.picture) as string | undefined;
+  const [imgOk, setImgOk] = useState(true);
+  return (
+    <div className="profile">
+      {avatar && imgOk
+        ? <img className="avatar" src={avatar} alt="" referrerPolicy="no-referrer" onError={() => setImgOk(false)} />
+        : <span className="avatar ph" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>}
+      <div className="who">
+        <b>{name}</b>
+        {email && email !== name && <span>{email}</span>}
+      </div>
+      <button className="logout" onClick={() => signOut()}>{t("signOut")}</button>
+    </div>
+  );
+}
+
 function nickFromSession(s: Session) {
   const name = (s.user.user_metadata?.full_name || s.user.user_metadata?.name || s.user.email || "Player") as string;
   return name.split(/[\s@]/)[0].slice(0, 16);
 }
 
-function clock(ms: number) {
+function clock(t: T, ms: number) {
   const sec = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-  return (d ? `${d}d ` : "") + [h, m, s].map((x) => String(x).padStart(2, "0")).join(":");
+  return (d ? `${d}${t("dayShort")} ` : "") + [h, m, s].map((x) => String(x).padStart(2, "0")).join(":");
 }
 
 const SITE = typeof window !== "undefined" ? window.location.origin : "";
@@ -194,7 +214,7 @@ function Landing({ t, fmt, now, stats }: Ctx) {
         <div className="stat"><b>{fmt(stats.registered)}</b><span>{t("registered")}</span></div>
         <div className="stat"><b>{fmt(stats.countries.length)}</b><span>{t("countries")}</span></div>
         {reg
-          ? <div className="stat"><b>{clock(Date.parse(s.starts_at) - now)}</b><span>{t("startsIn")}</span></div>
+          ? <div className="stat"><b>{clock(t, Date.parse(s.starts_at) - now)}</b><span>{t("startsIn")}</span></div>
           : <div className="stat"><b>{fmt(stats.alive)}</b><span>{t("alive")}</span></div>}
       </div>
       <div className="row">
@@ -241,7 +261,7 @@ function Lobby({ t, fmt, now, stats, me, copy, onNight }: Ctx & { onNight: () =>
       <span className="eyebrow">{t("lobbyEyebrow")} · {flag(me.profile?.country)} {me.profile?.nickname}</span>
       <h2>{t("lobbyTitle")}</h2>
       <div className="stats">
-        <div className="stat"><b>{clock(Date.parse(stats.season.starts_at) - now)}</b><span>{t("startsIn")}</span></div>
+        <div className="stat"><b>{clock(t, Date.parse(stats.season.starts_at) - now)}</b><span>{t("startsIn")}</span></div>
         <div className="stat"><b>{fmt(stats.registered)}</b><span>{t("registered")}</span></div>
         <div className="stat"><b>{fmt(stats.countries.length)}</b><span>{t("countries")}</span></div>
       </div>
@@ -322,7 +342,7 @@ function Match({ t, fmt, lang, now, stats, me, match, showError, refreshMe }: Ct
         <p className="lead">{t("waiting")}</p>
       ) : (
         <div className="col tight">
-          <div className="row between"><h3>{t("yourMove")}</h3><span className="note"><b>{clock(left)}</b> {t("timeLeft")}</span></div>
+          <div className="row between"><h3>{t("yourMove")}</h3><span className="note"><b>{clock(t, left)}</b> {t("timeLeft")}</span></div>
           <div className="timer"><i style={{ width: `${(left / total) * 100}%` }} /></div>
           <div className="moves">
             {MOVES.map((m) => (
@@ -343,7 +363,7 @@ function FinalCountdown({ t, lang, now, me, match }: Ctx & { match: MatchState }
     <div className="fade col">
       <span className="pill live">{t("finalBadge")}</span>
       <Players t={t} lang={lang} me={me} match={match} />
-      <div className="stats one"><div className="stat"><b>{clock(Date.parse(match.starts_at) - now)}</b><span>{t("finalStartsIn")}</span></div></div>
+      <div className="stats one"><div className="stat"><b>{clock(t, Date.parse(match.starts_at) - now)}</b><span>{t("finalStartsIn")}</span></div></div>
     </div>
   );
 }
