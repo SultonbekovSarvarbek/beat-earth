@@ -67,22 +67,17 @@ npm run dev                  # http://localhost:3000
 
 Фронт в продакшене ходит на `https://beat-earth-api.happybox.uz` (`web/.env.production`), в разработке — напрямую на Supabase (`web/.env.development`).
 
-**Один раз на сервере:**
+**Установка и каждое обновление — одна команда на сервере (под root):**
 
 ```bash
-# DNS: A-записи beat-earth и beat-earth-api → IP сервера
-sudo mkdir -p /var/www/beat-earth && sudo chown $USER /var/www/beat-earth
-sudo cp deploy/nginx-front.conf /etc/nginx/sites-available/beat-earth.happybox.uz
-sudo cp deploy/nginx-api.conf   /etc/nginx/sites-available/beat-earth-api.happybox.uz
-sudo ln -s /etc/nginx/sites-available/beat-earth.happybox.uz     /etc/nginx/sites-enabled/
-sudo ln -s /etc/nginx/sites-available/beat-earth-api.happybox.uz /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d beat-earth.happybox.uz -d beat-earth-api.happybox.uz
+curl -fsSL https://raw.githubusercontent.com/SultonbekovSarvarbek/beat-earth/main/deploy/setup-server.sh | bash
 ```
 
-**Выкладка фронта** — автоматически при каждом пуше в `main` (`.github/workflows/deploy.yml`). В GitHub → Settings → Secrets and variables → Actions добавь `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `DEPLOY_PATH` (`/var/www/beat-earth`). Без секретов workflow только собирает сайт.
+Скрипт забирает код в `/opt/beat-earth`, собирает фронт (с `--max-old-space-size=1536` для маленького сервера), выкладывает его в `/var/www/beat-earth`, ставит оба сайта в nginx (если их ещё нет), выпускает сертификаты Let's Encrypt и проверяет, что всё отвечает. Существующие сайты не трогает, перед перезагрузкой делает `nginx -t`.
 
-Вручную: `cd web && npm ci && npm run build && rsync -az --delete dist/ user@server:/var/www/beat-earth/`
+**Cloudflare:** DNS-записи `beat-earth` и `beat-earth-api` должны указывать на IP сервера; режим SSL — **Full (strict)** (в режиме Flexible будет бесконечный редирект).
+
+**Автодеплой при пуше в `main`** (`.github/workflows/deploy.yml`): в GitHub → Settings → Secrets and variables → Actions добавь `SSH_HOST` (IP сервера) и `SSH_KEY` (приватный ключ, публичная часть — в `/root/.ssh/authorized_keys`). Workflow заходит на сервер и запускает тот же скрипт.
 
 **Проверка прокси:** `curl https://beat-earth-api.happybox.uz/auth/v1/health -H "apikey: <anon key>"` должен вернуть JSON.
 
