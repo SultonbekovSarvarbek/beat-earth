@@ -4,7 +4,7 @@
 
 - **Фронт:** Vite + React + TypeScript (`web/`), языки RU / EN / 中文
 - **Бэк:** Supabase — Postgres, вход через Google, Realtime, pg_cron (`supabase/`)
-- **Стоимость на старте:** $0 (Supabase Free + Vercel / Cloudflare Pages Free)
+- **Хостинг:** фронт и API-прокси на своём сервере (nginx), база и вход — Supabase Free
 
 ## Как устроена игра
 
@@ -58,9 +58,35 @@ npm install
 npm run dev                  # http://localhost:3000
 ```
 
-### 4. Деплой (Vercel)
+### 4. Деплой на свой сервер
 
-New Project → импорт репозитория → **Root Directory: `web`** → Framework: Vite → переменные `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` → Deploy. Потом добавь адрес сайта в Supabase (шаг 2.4).
+| Домен | Что там | Конфиг |
+|---|---|---|
+| `beat-earth.happybox.uz` | фронт (статические файлы из `web/dist`) | `deploy/nginx-front.conf` |
+| `beat-earth-api.happybox.uz` | прокси на Supabase (REST, вход, Realtime) | `deploy/nginx-api.conf` |
+
+Фронт в продакшене ходит на `https://beat-earth-api.happybox.uz` (`web/.env.production`), в разработке — напрямую на Supabase (`web/.env.development`).
+
+**Один раз на сервере:**
+
+```bash
+# DNS: A-записи beat-earth и beat-earth-api → IP сервера
+sudo mkdir -p /var/www/beat-earth && sudo chown $USER /var/www/beat-earth
+sudo cp deploy/nginx-front.conf /etc/nginx/sites-available/beat-earth.happybox.uz
+sudo cp deploy/nginx-api.conf   /etc/nginx/sites-available/beat-earth-api.happybox.uz
+sudo ln -s /etc/nginx/sites-available/beat-earth.happybox.uz     /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/beat-earth-api.happybox.uz /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d beat-earth.happybox.uz -d beat-earth-api.happybox.uz
+```
+
+**Выкладка фронта** — автоматически при каждом пуше в `main` (`.github/workflows/deploy.yml`). В GitHub → Settings → Secrets and variables → Actions добавь `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `DEPLOY_PATH` (`/var/www/beat-earth`). Без секретов workflow только собирает сайт.
+
+Вручную: `cd web && npm ci && npm run build && rsync -az --delete dist/ user@server:/var/www/beat-earth/`
+
+**Проверка прокси:** `curl https://beat-earth-api.happybox.uz/auth/v1/health -H "apikey: <anon key>"` должен вернуть JSON.
+
+В Supabase → Authentication → URL Configuration уже стоят Site URL `https://beat-earth.happybox.uz` и Redirect URL `https://beat-earth.happybox.uz/**`.
 
 ## Управление сезоном
 

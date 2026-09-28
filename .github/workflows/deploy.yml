@@ -1,0 +1,52 @@
+# Builds the frontend and uploads it to the server on every push to main.
+# Repository → Settings → Secrets and variables → Actions → add:
+#   SSH_HOST     server address (IP or host name)
+#   SSH_USER     user that can write to DEPLOY_PATH
+#   SSH_KEY      private SSH key for that user (the public key goes to ~/.ssh/authorized_keys on the server)
+#   DEPLOY_PATH  e.g. /var/www/beat-earth
+name: Deploy frontend
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build
+        working-directory: web
+        run: npm ci && npm run build
+
+      - name: Check secrets
+        id: check
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: echo "ready=$([ -n "$SSH_HOST" ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to server
+        if: steps.check.outputs.ready == 'yes'
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" web/dist/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Secrets missing
+        if: steps.check.outputs.ready != 'yes'
+        run: echo "::warning::Build OK, but SSH secrets are not set — nothing was uploaded."
